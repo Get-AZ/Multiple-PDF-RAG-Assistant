@@ -8,5 +8,6 @@ Install requirements inside an activated virtual environment, create .env from t
 - No readable text: use a text-based PDF or run OCR separately.
 - Missing fact: inspect Retrieved passages first. Distinguish missing retrieved evidence from absent document content.
 - Changed uploads: click Process PDFs again. The question box deliberately stays disabled until selection matches the indexed files.
-- Follow-up questions: repeat the relevant names/details because prior chat messages are not sent to the model.
+- Follow-up questions: the last three completed turns inform a standalone search-query rewrite. Check the displayed Search question if a follow-up retrieves the wrong topic; rephrase with explicit document names when necessary. An additional model request is used for follow-ups.
 - Dependency mismatch: record python --version and python -m pip freeze after a working install; the supplied requirements do not pin a tested environment.
+

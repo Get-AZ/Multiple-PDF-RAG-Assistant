@@ -1,4 +1,5 @@
 import ast
+from collections import Counter
 import io
 import unittest
 from pathlib import Path
@@ -10,7 +11,7 @@ SOURCE = Path(__file__).resolve().parents[1] / 'app.py'
 def helper(name, **env):
     tree = ast.parse(SOURCE.read_text())
     fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
-    scope = dict(env)
+    scope = dict(Counter=Counter, **env)
     exec(compile(ast.Module(body=[fn], type_ignores=[]), str(SOURCE), 'exec'), scope)
     return scope[name]
 

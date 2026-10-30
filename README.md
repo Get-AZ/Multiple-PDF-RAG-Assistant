@@ -11,7 +11,10 @@ A Streamlit application by **Getamesay Zegeye** for asking questions across uplo
 - Gemini document/query embeddings with distinct retrieval task types.
 - L2-normalized vectors and exact FAISS IndexFlatIP search over a shared document collection.
 - Up to six retrieved chunks per question, with file names and page numbers.
-- Gemini Flash-Lite answers, visible evidence, chat display and clear-chat control.
+- Gemini Flash-Lite answers with recent conversation history and follow-up question rewriting.
+- Upload sidebar, chat tab and separate retrieved-context tab.
+- Answer-specific evidence retained across reruns, with a selector for previous answers.
+- Indexed-document inventory, duplicate-filename labels and clear-chat control.
 - SHA-256 file-selection checks prevent questions using an index for a changed selection.
 - The prior index is replaced only after successful processing.
 
@@ -39,9 +42,20 @@ Upload text-based PDFs, click **Process PDFs**, then ask a question. Both embedd
 
 ## Implementation boundaries
 
-The FAISS index is in session memory; it is not saved to disk. Restarting the session requires processing again. Chat history is displayed but is not passed to Gemini, so each question is answered independently. Retrieval is semantic top-6 across all PDFs; there is no hybrid retrieval, reranking, per-document coverage guarantee or relevance threshold. Scanned PDFs require OCR outside this app.
+The FAISS index is in session memory; it is not saved to disk. Restarting the session requires processing again. The last three completed conversation turns are used to resolve follow-ups. A separate model request rewrites follow-ups for retrieval; both the current question and bounded history accompany answer generation. History is not treated as factual evidence. Retrieval is semantic top-6 across all PDFs; there is no hybrid retrieval, reranking, per-document coverage guarantee or relevance threshold. Scanned PDFs require OCR outside this app.
 
-The source is the attached app.py, preserved without functional changes. Helper tests validate chunking, indexing and selection behavior without API calls; live Gemini inference has not been rerun for this release. Earlier multi-PDF answers showed both successful synthesis and missing-evidence failures. No final numerical accuracy score is claimed for this exact source.
+This Task 2 update extends the attached original source. Thirteen offline tests pass, including Streamlit AppTest flows, real pypdf extraction and real FAISS indexing/search with simulated Google responses. Extraction also succeeded on the supplied YOLO and Transformer research PDFs (74 chunks across 25 nonempty pages). Sample research/manual/report PDFs are generated in memory by the tests. These checks establish application behavior, not live Gemini answer quality. No live API accuracy or latency result is claimed.
+
+## Task 2: multi-document chat
+
+1. Upload several text-based PDFs in the sidebar and click **Process PDFs**.
+2. Use **Chat** to ask a question or follow-up. Earlier chat is kept in session state.
+3. Open **Retrieved context** to inspect an answer's file names, pages, passages and rewritten search question.
+4. Use **Choose an answer to inspect** to revisit evidence from an earlier turn.
+5. **Clear chat** removes chat and evidence while retaining the processed index.
+6. A changed upload selection disables questions and hides the old chat until that selection is restored or successfully processed.
+
+Retrieved file labels identify candidate evidence, not a guarantee that every passage contributed to the answer. Citations remain model-generated and need review. Follow-ups add a model call and can fail or resolve references incorrectly.
 
 ## Documentation
 
@@ -55,6 +69,11 @@ The source is the attached app.py, preserved without functional changes. Helper 
 - [Portfolio case study](career/PORTFOLIO_CASE_STUDY.md)
 - [30 interview questions and answers](interview/30_Interview_Questions_and_Answers.md)
 
+Install test dependencies: `python -m pip install -r requirements-dev.txt`.
+
 Run offline checks: `python -m unittest discover -s tests -v`.
 
+See [Task 2 validation and manual test matrix](docs/TASK2_VALIDATION.md).
+
 Project: https://github.com/Get-AZ/Multiple-PDF-RAG-Assistant
+

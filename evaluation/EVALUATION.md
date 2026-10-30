@@ -20,3 +20,8 @@ Freeze source hash, dependency versions, resolved model IDs, PDF hashes, chunk p
 12. What English-to-Amharic BLEU does the Transformer paper report? Expected: absent.
 
 Verify page positions against the actual PDF editions before scoring. No results are prefilled. Separately test changing the upload selection, failed reprocessing, empty text, cleared chat and one-chunk collections.
+
+
+## Task 2 update
+
+See [Task 2 validation](../docs/TASK2_VALIDATION.md) for 13 passing offline tests, mixed-document fixtures, actual source-paper extraction counts and the pending live-API acceptance matrix. Keep automated app-state results separate from answer-quality scores.

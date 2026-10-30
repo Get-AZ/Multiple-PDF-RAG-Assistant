@@ -16,3 +16,8 @@ Earlier tests on YOLO and Transformer papers included direct questions, cross-pa
 
 ## Limitations and next work
 No OCR, disk persistence, API quota backoff, local embedding fallback, per-document coverage, reranking, calibrated refusal threshold, multi-user service controls or automated citation verification is implemented. Reprocessing can exhaust embedding quota. Next experiments should fix the source/model configuration, record exact contexts and evaluate unseen questions before tuning. Consider persistent indexes, token-aware chunks, hybrid candidates and a bounded context budget after measuring failures.
+
+
+## Task 2 extension
+
+Recent chat now informs a standalone retrieval-query rewrite and answer interpretation. The last three completed turns are bounded by character count and sent as conversation context, not source evidence. Retrieved passages and the rewritten query are stored per answer. Upload, chat and evidence use separate UI areas; duplicate filenames receive document-number labels. Thirteen offline tests pass, using simulated Google responses. See TASK2_VALIDATION.md for detailed scope and live acceptance checks.
