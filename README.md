@@ -1,6 +1,6 @@
 # Multiple PDF RAG Assistant
 
-![Multiple PDF RAG Assistant](multiple-pdf-rag-cover.png)
+![Multiple PDF RAG Assistant](./Multiple-PDF-RAG-Assistant.png)
 
 A Streamlit application by **Getamesay Zegeye** for asking questions across uploaded PDFs and inspecting the retrieved evidence.
 
