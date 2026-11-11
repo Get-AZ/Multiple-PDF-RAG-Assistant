@@ -9,10 +9,31 @@ from unittest.mock import patch
 SOURCE = Path(__file__).resolve().parents[1] / 'app.py'
 
 def helper(name, **env):
+    if name == 'extract_chunks':
+        import rag_provenance
+
+        def extract(files):
+            with patch.object(
+                rag_provenance, 'PdfReader', env['PdfReader']
+            ):
+                return rag_provenance.extract_pdf_chunks(files)
+
+        return extract
+
     tree = ast.parse(SOURCE.read_text())
-    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+    fn = next(
+        n for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name == name
+    )
     scope = dict(Counter=Counter, **env)
-    exec(compile(ast.Module(body=[fn], type_ignores=[]), str(SOURCE), 'exec'), scope)
+    exec(
+        compile(
+            ast.Module(body=[fn], type_ignores=[]),
+            str(SOURCE),
+            'exec',
+        ),
+        scope,
+    )
     return scope[name]
 
 class Helpers(unittest.TestCase):
