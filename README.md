@@ -265,9 +265,9 @@ No Google credentials are required. The workflow is [.github/workflows/rag-servi
 | `score_baseline_reviews.py` | Validated baseline human-review scoring |
 | `score_citation_reviews.py` | Bound candidate scoring and paired comparison |
 
-## Earlier documentation and career materials
+## Release and career materials
 
-The linked documents below predate the API/evaluation upgrade and may describe the earlier Streamlit-only milestone. This README records the current service boundaries and results.
+[Proposed v1.0.0 release notes and publish checklist](docs/RELEASE_NOTES_v1.0.0.md) describe the current scope. The CV, LinkedIn draft and portfolio case study below reflect the evaluated service. The technical report, architecture, setup, evaluation plan, task validation and interview materials remain historical and may describe the earlier Streamlit-only milestone; use this README for current setup and boundaries.
 
 - [Technical report](docs/TECHNICAL_REPORT.md)
 - [Architecture](docs/ARCHITECTURE.md)
