@@ -92,3 +92,20 @@ The probes are document vectors used as fixed index queries for serialization/in
 The expanded 176-test suite passed during preparation using simulated provider responses. No real Google requests or real-PDF timing benchmark were performed during preparation. Windows CI and the user's measured run remain separate steps. Historical app.py, evaluation helpers, saved prompts/reviews/scores and the six original core prompt/retrieval functions remain unchanged; build_index gains the opt-in reuse/instrumentation path.
 
 Reference for NPZ loading without object deserialization: https://numpy.org/doc/stable/reference/generated/numpy.load.html
+
+## Reported local measurement — 2026-11-12
+
+The user ran the controlled benchmark on the YOLO and Transformer PDFs and supplied its completed terminal summary:
+
+| Observation | Cold run | Warm runs |
+|---|---:|---:|
+| Document-embedding requests | 4 | 0, 0, 0 |
+| Processing time | 4.2626 s | 0.8397 s median across three runs |
+
+The observed cold/warm-median ratio was approximately **5.08x**, or **80.30% less processing time** for the warm median in this run. All three warm runs avoided document-embedding requests. This does not measure total application request savings, answer latency or dollar savings.
+
+The runner reported identical cached vectors, extracted provenance and fixed self-vector probe rankings. It generated no answers and saved benchmark_report.json under the local private_data/embedding_cache_benchmark_v1/ directory. The raw report and vectors remain local; this public summary records the user-reported console observations.
+
+pypdf emitted warnings about missing fontTools for CFF Type1 font encodings. The run still completed its consistency checks; these checks do not establish that PDF text extraction was complete or free of encoding errors.
+
+This is one cold run followed by three sequential warm runs in one local environment. Provider latency, repeated extraction and OS caching affect the comparison. It is evidence of request avoidance and an observed local timing difference, not a general speedup guarantee or a new retrieval/answer-quality score. The benchmark used its own cache and did not enable caching by default in the UI or API.
