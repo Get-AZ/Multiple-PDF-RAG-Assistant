@@ -9,6 +9,7 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 import rag_core as core
+from citation_validation import check_citations
 
 PIPELINE_ID = "shared_core_v1"
 
@@ -26,6 +27,20 @@ def build_index(files, stats=None):
         return core.build_index(files, progress=update, stats=stats)
     finally:
         progress.empty()
+
+
+def render_citation_status(message):
+    """Show reference diagnostics before displaying the unchanged model answer."""
+    result = message.get("citation_check")
+    if result is None:
+        result = check_citations(message["content"], message.get("passages", []))
+    if result["status"] == "needs_review":
+        messages = list(dict.fromkeys(issue["message"] for issue in result["issues"]))
+        st.warning("Citation references need review: " + " ".join(messages))
+    elif result["status"] == "matched":
+        st.caption("Filename/page references match retrieved headers. Claim support and citation coverage still need review.")
+    else:
+        st.info("No parseable filename/page citations to check. Review factual claims manually; a brief missing-information response may need no citation.")
 
 
 def render_sources(message):
@@ -101,6 +116,8 @@ def main():
         if ready:
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
+                    if message["role"] == "assistant":
+                        render_citation_status(message)
                     st.markdown(message["content"])
                     if message["role"] == "assistant":
                         st.caption("Retrieved PDFs: " + ", ".join(sorted(
@@ -116,6 +133,7 @@ def main():
                 st.session_state.messages.append({
                     "role": "assistant", "content": answer, "passages": passages,
                     "retrieval_question": rewritten,
+                    "citation_check": check_citations(answer, passages),
                 })
                 st.rerun()
             except Exception as error:
@@ -128,6 +146,7 @@ def main():
             chosen = st.selectbox("Choose an answer to inspect", range(len(answers)),
                                   index=len(answers) - 1,
                                   format_func=lambda n: f"Answer {n + 1}")
+            render_citation_status(answers[chosen])
             st.markdown(answers[chosen]["content"])
             render_sources(answers[chosen])
         else:
