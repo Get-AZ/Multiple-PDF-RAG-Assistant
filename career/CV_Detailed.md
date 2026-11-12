@@ -1,25 +1,28 @@
-# Detailed CV Project Entry
+# Detailed CV project entry
 
 ## Multiple PDF RAG Assistant
-Getamesay Zegeye | Independent AI portfolio project
+Getamesay Zegeye | Independent portfolio project
 
-### Objective
-Developed a local application that searches several uploaded PDFs and generates answers supported by retrieved passages with file and page references.
+Developed a local multi-document question-answering application with a shared Python core serving a Streamlit UI and an authenticated HTTP API.
 
-### Implementation
-- Built a Streamlit interface with multi-file upload, embedding progress, processing controls, chat display, error reporting and source inspection.
-- Extracted text per page and created 1,500-character windows with 200-character overlap, retaining document filenames and page metadata.
-- Batched Gemini document embeddings in groups of up to 20 and used a separate retrieval-query task for question encoding.
-- Normalized float32 vectors and built an exact FAISS IndexFlatIP index for semantic search across the collection.
-- Selected up to six passages and integrated Gemini Flash-Lite with a grounded-answer prompt, request timeout and output limit.
-- Fingerprinted selected files using SHA-256 and disabled questions when uploads no longer matched the indexed collection.
-- Replaced the active index only after processing succeeded and separated chat clearing from document processing.
+- Implemented page-local 1,500-character chunks with 200-character overlap, stable evidence identities and filename/page metadata.
+- Used task-specific Gemini document/query embeddings, validated normalized float32 vectors and exact FAISS IndexFlatIP search over the full uploaded collection.
+- Added bounded completed-turn history and standalone follow-up question rewriting.
+- Built collection creation, query and deletion endpoints with bearer authentication, upload/body bounds, collection isolation and sanitized provider errors.
+- Added an opt-in document-vector cache bound to content, extraction policy, model/configuration and implementation identity, with checksum validation and atomic writes.
+- Added citation diagnostics that check filename/page references against retrieved headers while explicitly leaving semantic support and claim coverage unverified.
+- Expanded offline validation to 201 tests, covering extraction, retrieval, provenance, saved evaluation bindings, UI state, API behavior and cache integrity.
 
-### Evaluation and problem solving
-Investigated direct-answer, cross-document and missing-information questions using YOLO and Transformer research papers. Distinguished absent evidence in retrieved context from absence in the document. Documented quota exhaustion during cloud embedding and API timeout behavior. Prepared offline helper checks and an exact-source evaluation plan; no final aggregate answer-accuracy score is claimed.
+## Measured development work
 
-### Scope
-Local educational application. Indexes are held in session memory, and displayed chat history is not sent to the model. Planned improvements include persistent indexing, quota-aware retries and stronger retrieval coverage.
+On 12 answerable questions within a frozen 15-case development set, original retrieval achieved Recall@6 0.8125, MRR@6 0.6972 and nDCG@6 0.6836. Single-reviewer answer assessment found 15/15 correctness, 13/15 completeness and 11/15 citation support; 9/15 passed all five criteria.
 
-### Technical skills
-Python, Streamlit, pypdf, NumPy, FAISS, Google Gen AI SDK, embeddings, information retrieval, prompt design, state management and evaluation.
+Rejected a citation-prompt candidate because completeness fell from 13/15 to 12/15 despite better citation support. Also rejected a reranker that regressed retrieval metrics.
+
+In one local two-PDF cache benchmark, four cold document-embedding requests fell to zero on each of three warm runs. Cold processing took 4.2626 seconds; warm median processing took 0.8397 seconds. This is a local document-processing observation, not an answer-latency or general speedup claim.
+
+## Scope
+
+Local single-user operation with in-memory indexes and optional persistent document vectors. Google APIs perform embedding and generation. Results concern familiar development documents, not held-out generalization or production deployment.
+
+Skills: Python, Starlette, Streamlit, pypdf, NumPy, FAISS, Google Gen AI SDK, automated testing, provenance, evaluation and API integration.
