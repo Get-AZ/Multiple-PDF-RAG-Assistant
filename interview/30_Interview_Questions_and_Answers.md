@@ -1,123 +1,125 @@
-# 30 Interview Questions and Answers
+# 30 interview questions and answers
 
-Multiple PDF RAG Assistant | Getamesay Zegeye
+Multiple PDF RAG Assistant v1.0.0 | Getamesay Zegeye
 
-## 1. What problem does this project solve?
+These answers describe implemented behavior and measured development work. Adapt first-person wording to your own explanation; do not present local development observations as production results.
 
-It answers questions across uploaded PDFs while exposing retrieved passages and their file/page metadata.
+## 1. What did you build?
 
-## 2. What does RAG mean here?
+I built a local multi-PDF RAG assistant with a shared Python pipeline, a Streamlit UI and a bearer-authenticated Starlette API. Users can inspect retrieved text, filenames, pages and evidence IDs.
 
-Retrieval selects document passages, then a language model generates an answer using that context.
+## 2. How is the architecture separated?
 
-## 3. How does multi-PDF upload work?
+rag_core.py handles the model pipeline; rag_provenance.py handles evidence identities; rag_service.py manages collections; service_api.py validates HTTP requests. The UI calls the core directly and does not require the API server.
 
-Streamlit accepts multiple PDF files and extract_chunks iterates over each file and its pages.
+## 3. What does RAG mean in this project?
 
-## 4. Why preserve page metadata?
+The system embeds a question, retrieves relevant PDF passages, then supplies those passages to Gemini for generation. Retrieval and generation are separate failure points; a fluent answer is not proof that the evidence supports it.
 
-It makes source evidence traceable and supports file/page citations in answers.
+## 4. How do you extract and chunk PDFs?
 
-## 5. How are chunks created?
+pypdf extracts existing text page by page. I use 1,500-character windows with 200-character overlap without crossing page boundaries. Scanned documents need OCR first; overlap can still split sentences or add redundancy.
 
-Each page uses 1,500-character windows with a 1,300-character stride, giving 200-character overlap.
+## 5. Why preserve stable evidence identities?
 
-## 6. Why use overlap?
+Document byte hashes and policy/location-bound chunk IDs let me trace saved results to exact source content. Renaming a PDF does not change its content identity, while changing its bytes or extraction policy can change the relevant identities.
 
-It retains nearby content at boundaries, although it may add redundancy and still split a sentence.
+## 6. Which embedding model and task types do you use?
 
-## 7. What happens to empty pages?
+gemini-embedding-001 through the Google Gen AI SDK. Document batches use RETRIEVAL_DOCUMENT and question embeddings use RETRIEVAL_QUERY. Document batches contain up to 20 chunks.
 
-They are skipped; a collection with no readable text raises a clear processing error.
+## 7. How do you validate embeddings?
 
-## 8. Does it support scanned PDFs?
+I convert responses to contiguous float32 arrays, verify the response shape and row count, reject nonfinite or zero-norm vectors, then L2-normalize them. Invalid vectors must not silently enter the index.
 
-Not directly. pypdf extracts existing text; scanned images require an OCR stage first.
+## 8. Why FAISS IndexFlatIP?
 
-## 9. Which embedding model is configured?
+For a small collection, exact inner-product search is straightforward to inspect. On unit-length vectors its ranking corresponds to cosine similarity. It is not approximate nearest-neighbor search, and its memory cost grows with the collection.
 
-gemini-embedding-001 through the Google Gen AI SDK. Both document and question embeddings call the API.
+## 9. Does global top-six retrieval guarantee cross-document coverage?
 
-## 10. Why use different embedding task types?
+No. All six passages can come from one PDF. I inspect coverage and frozen evidence ranks before changing retrieval; possible future comparisons include hybrid or per-document candidates under the same context budget.
 
-RETRIEVAL_DOCUMENT identifies indexed text and RETRIEVAL_QUERY identifies a search question for the embedding service.
+## 10. How do follow-up questions work?
 
-## 11. Why batch embeddings?
+The latest three completed user/assistant pairs are bounded and sent to a separate standalone-question rewrite request. The rewritten question drives retrieval. History resolves references but is explicitly not source evidence.
 
-Groups of up to 20 chunks support progress reporting and bound the number of inputs in each application-level call.
+## 11. Which model and request bounds generate answers?
 
-## 12. Why convert vectors to float32?
+The shared core uses gemini-3.5-flash-lite, a 60-second client timeout and one attempt. Rewrite output is capped at 256 tokens and answer output at 1,000. A model ID does not independently pin provider weights.
 
-FAISS expects suitable numeric arrays; float32 is the standard representation used by this implementation.
+## 12. How do you avoid stale UI indexes?
 
-## 13. Why normalize vectors?
+The UI compares the selected filenames and content fingerprints with the indexed selection. Changed uploads disable questions. New processing replaces the old index only after success; clearing chat retains the index.
 
-Unit-length vectors let inner-product ranking correspond to cosine similarity.
+## 13. What endpoints does the service expose?
 
-## 14. Which FAISS index is used?
+GET /health, POST /collections, POST /collections/{id}/query and DELETE /collections/{id}. Health makes no Google request. Creation embeds documents; queries embed questions and generate answers, with an extra rewrite for follow-ups.
 
-IndexFlatIP, an exact inner-product index; it does not use approximate nearest-neighbor search.
+## 14. How is authentication implemented?
 
-## 15. Is the FAISS index persistent?
+Non-health endpoints require a bearer service token distinct from the Google key. The configured token must be at least 32 ASCII characters. Every token holder can access all collections, so this is local single-user access rather than tenant authorization.
 
-No. It is stored in Streamlit session state and must be rebuilt after the session is lost.
+## 15. What resource limits are enforced?
 
-## 16. How many chunks are retrieved?
+The API accepts 1–4 PDFs, up to 6 MiB each and a 12 MiB total body including multipart overhead. It allows four resident collections and 2,000 chunks per collection. Questions are capped at 4,000 characters; concurrent collection operations return 409.
 
-Up to six, or fewer if the index contains fewer than six vectors.
+## 16. How does collection and chat persistence work?
 
-## 17. Does retrieval guarantee both PDFs are represented?
+API collections and UI indexes live in memory and are separate. Restarting the server loses API collections. The API stores no chat history; clients send up to three completed pairs. Optional document-vector persistence does not persist collections or chat.
 
-No. A global top-six search may return passages from only one file.
+## 17. How do you handle API failures?
 
-## 18. How could you improve cross-document coverage?
+The boundary returns sanitized errors instead of provider details that might include private content. Examples include 401 for auth, 404 for missing collections, 409 for busy/capacity, 413 for size and 502 for other processing failures. Some calls may consume quota before failure.
 
-Measure coverage first, then compare per-document candidates, decomposed queries or hybrid retrieval under a fixed context budget.
+## 18. What exactly is cached?
 
-## 19. Which language model generates answers?
+Only the complete ordered collection's document-vector matrix, when explicitly enabled. Extraction and FAISS construction still run. Query embeddings, rewrites, answers and FAISS indexes are not cached.
 
-The configured alias is gemini-flash-lite-latest; aliases can change over time, so record the resolved model for reproducibility.
+## 19. How do you prevent invalid cache reuse?
 
-## 20. What grounding instructions are used?
+The cache binds content/provenance, extraction policy, model/task/dimension, normalization, implementation/package identity and an operator revision. It validates checksums and arrays, loads without pickle and writes atomically. Provider weight drift under the same ID needs an operator revision change.
 
-Answer from reference passages, address requested parts, cite filename/page, allow supported comparisons and identify specific missing facts.
+## 20. What did the cache benchmark show?
 
-## 21. Are citations automatically verified?
+In one local two-PDF run, four cold document-embedding requests became zero in each of three warm runs. Cold processing took 4.2626 seconds and the warm median was 0.8397 seconds. That observation does not establish general speedup, answer latency or retrieval quality.
 
-No. Citations are generated by the model and should be checked against displayed passages.
+## 21. What do the citation diagnostics verify?
 
-## 22. How do you diagnose a false missing-information answer?
+They check supported filename/PDF-page references against supplied retrieved headers. matched means those references matched, not that the claim is true. Semantic support and claim coverage remain unchecked; the original answer is never repaired or blocked.
 
-Inspect the actual retrieved context, check extraction and source coverage, then assess whether generation ignored available evidence.
+## 22. How do you interpret not_checked citations?
 
-## 23. How does the app prevent stale-document queries?
+It means no parseable reference was assessed. A brief missing-information response may reasonably have no citation, but uncited factual content may still need review. The parser does not assign automatic human-quality scores.
 
-It compares the indexed selection with tuples of filenames and SHA-256 file-content hashes before enabling the chat input.
+## 23. How did you structure the evaluation?
 
-## 24. What happens if processing fails midway?
+I froze 15 reviewed development cases on familiar YOLO and Transformer papers: 12 answerable, three missing-information and two completed follow-up histories. Gold answers and evidence labels stay out of model inputs, and saved contexts/responses are bound to their sources.
 
-The old session index remains because replacement occurs only after build_index succeeds. Completed API calls may still consume quota.
+## 24. What retrieval results did you measure?
 
-## 25. Does the model remember earlier chat messages?
+On the 12 answerable development cases, original FAISS retrieval achieved Recall@6 0.8125, MRR@6 0.6972 and nDCG@6 0.6836. These measure frozen labeled evidence retrieval, not final answer quality or held-out generalization.
 
-No. Messages are displayed, but only the current question and retrieved passages enter the generation request.
+## 25. How do correctness and completeness differ?
 
-## 26. What request limits are configured?
+An answer can state only correct facts yet omit a requested part. In baseline human review, correctness was 15/15, completeness 13/15, groundedness 15/15, citation support 11/15 and appropriate abstention 15/15. Only 9/15 passed all five criteria.
 
-A 60,000 ms client timeout, one configured attempt and a 1,000-token generation output limit.
+## 26. Describe an experiment you decided not to ship.
 
-## 27. How should a 429 embedding error be handled?
+A citation-instruction candidate improved citation support from 11/15 to 12/15, but completeness fell from 13/15 to 12/15. I retained the baseline because the change introduced a regression despite improving another metric.
 
-Inspect the quota metric and retry guidance, avoid repeated reprocessing and consider persistence or alternative embeddings after measuring needs.
+## 27. What happened with reranking?
 
-## 28. What data leaves the computer?
+A saved-query experiment reranked 30 candidates down to six with a cross-encoder. Recall@6 fell to 0.5625, MRR@6 to 0.5972 and nDCG@6 to 0.4992, so I did not promote it. Input truncation was a diagnostic concern, not a proven explanation for every failure.
 
-Chunk text goes to Google for embeddings; questions go for query embedding and generation; retrieved context also goes for generation.
+## 28. How do you diagnose an apparently missing answer?
 
-## 29. How would you evaluate the app?
+I inspect extraction and exact retrieved passages before blaming generation. The fact may exist elsewhere in the PDF. In one case equivalent answering evidence appeared outside the frozen labeled chunk; I preserved the label-based score rather than retroactively changing the test.
 
-Use frozen questions with direct, cross-document and absent-answer cases; score retrieval coverage, answer correctness, completeness, citations and abstention separately.
+## 29. What do the 201 tests establish?
 
-## 30. What would you change before shared deployment?
+They check implementation behavior offline, using simulated Google responses plus real PDF extraction and FAISS operations. They cover provenance, bindings, history, state, API validation, caches and reference checks. Separate live smoke checks establish basic functionality, not an aggregate quality score.
 
-Add data isolation and access controls, persistent index management, bounded inputs/context, quota-aware handling and exact-source integration testing.
+## 30. What would you do next?
+
+I would freeze an unfamiliar-document evaluation before more tuning and add independent review where possible. Production sharing would also need user-specific authorization, durable collection management and operational controls. The current small single-reviewer development set cannot establish production reliability.
