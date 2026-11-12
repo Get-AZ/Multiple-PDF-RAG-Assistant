@@ -1,10 +1,12 @@
-# Short CV Project Entry
+# Short CV project entry
 
 ## Multiple PDF RAG Assistant
-Getamesay Zegeye | Independent AI project
+Getamesay Zegeye | Independent portfolio project
 
-- Built a Streamlit assistant for question answering across multiple PDFs using pypdf, Gemini embeddings, FAISS and Gemini Flash-Lite.
-- Implemented overlapping page-aware chunks, normalized semantic retrieval, file/page citation prompts and an expandable source-evidence panel.
-- Added file-content fingerprints and transactional index replacement to prevent querying stale uploads; documented API quota and retrieval failure modes.
+- Built a shared Python RAG pipeline for a Streamlit UI and bearer-authenticated Starlette API, with page-aware PDF extraction, Gemini embeddings, FAISS retrieval and bounded follow-up history.
+- Created a reproducible 15-case development evaluation with frozen evidence and human reviews; retained the baseline after citation-prompt and reranking experiments exposed regressions.
+- Added integrity-checked document embedding caching and filename/page citation diagnostics; validated the expanded implementation with 201 offline tests.
 
-Skills: Python, Streamlit, NumPy, FAISS, retrieval-augmented generation, API integration, source-grounded evaluation.
+Skills: Python, Starlette, Streamlit, FAISS, NumPy, Google Gen AI SDK, API design, automated testing, RAG evaluation.
+
+Scope: local single-user application; development results do not establish production reliability.
