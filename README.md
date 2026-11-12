@@ -16,6 +16,7 @@ The service returns answers alongside the retrieved filenames, PDF pages, text a
 - Bounded history and a standalone-question rewrite for follow-ups.
 - Streamlit upload, chat and evidence-inspection tabs using the same RAG core as the API.
 - Local API for collection creation, questions and deletion, protected by a service token.
+- Optional local document-embedding reuse with request counts and a cold/warm benchmark; disabled by default.
 - Frozen development data, saved-response bindings and human-reviewed answer comparisons.
 - GitHub Actions runs the offline test suite on pull requests to `main`.
 
@@ -156,7 +157,7 @@ Successful deletion returns **204**. A valid question request for that deleted c
 - One collection operation at a time; overlapping operations return **409**.
 - Questions contain 1–4,000 characters. History accepts up to three completed pairs, with at most 6,000 characters per message before the core's additional text caps.
 - Text-based PDFs only; OCR is not included. Unreadable files are reported as not indexed, and an entirely textless collection is rejected.
-- State is in process memory. There is no persistence, cross-worker coordination, embedding disk cache, TTL, task queue or user-account system.
+- Indexes, collections and chat are in process memory. An opt-in document-embedding cache can persist derived vectors locally; see the cache section below. There is no cross-worker collection coordination, TTL, task queue or user-account system.
 
 | Status | Meaning |
 |---|---|
@@ -169,6 +170,14 @@ Successful deletion returns **204**. A valid question request for that deleted c
 | 502 | Other processing/provider failure; exception details are withheld |
 
 For **413**, inspect actual file sizes; the total body limit still applies even when each file is below 6 MiB. For PowerShell JSON requests, prefer `ConvertTo-Json` and `Invoke-RestMethod`; inline JSON passed to `curl.exe` can be altered by native-command quoting. Invalid JSON can return 422 before collection lookup. For 401, load the token from the same `.env` used by the running server.
+
+## Optional embedding cache
+
+Enable `RAG_EMBEDDING_CACHE_ENABLED=1` before starting the UI/API to reuse matching document vectors across processing runs. It is off by default. Records live under `private_data/embedding_cache_v1/` unless configured otherwise. Questions, rewrites and answers are not cached; document extraction and FAISS construction still run.
+
+The UI displays processing observations; API collection creation includes a `processing` object with document-embedding requests, reused chunks and elapsed seconds. Deleting a collection or clearing chat does not delete persisted cache records. Treat vectors as private derived document data, and change the cache revision when the provider embedding version changes.
+
+[Cache setup, invalidation, limits and cold/warm measurement](docs/EMBEDDING_CACHE.md) explain the opt-in settings and `benchmark_embedding_cache.py`. The benchmark defaults to a no-API dry run; `--execute` makes cold document-embedding requests and verifies zero requests on warm repeats. No real timing/savings claim is assigned before measurement.
 
 ## Streamlit interface
 
@@ -186,7 +195,7 @@ Upload several PDFs, click **Process PDFs**, then use **Chat** and **Retrieved c
 
 ## Validation and development evaluation
 
-**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed for the service milestone. The shared-core UI adds eight offline tests; the expanded **158-test suite passed during migration preparation**. Its Windows PR check runs separately. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
+**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed for the service milestone. The shared-core UI adds eight offline tests; the expanded **158-test suite passed during migration preparation**. The cache extension adds 18 offline tests; the expanded **176-test suite passed during cache preparation**. Windows PR checks run separately. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
 
 Live local smoke checks separately passed for health, unauthorized-request rejection, two-PDF upload, a direct FPS answer, a follow-up layer-count answer, missing-information handling and deletion (**204**, followed by **404**). These examples demonstrate functionality, not a new answer-quality benchmark or latency measurement.
 
@@ -239,6 +248,8 @@ No Google credentials are required. The workflow is [.github/workflows/rag-servi
 | `rag_service.py` | Collection storage, isolation, query and deletion |
 | `service_api.py` | Authenticated HTTP boundary and resource limits |
 | `run_service.py` | Single-worker localhost server entry point |
+| `embedding_cache.py` | Opt-in bound document-vector cache with integrity validation |
+| `benchmark_embedding_cache.py` | New-output cold/warm request-count and timing observations |
 | `run_app_retrieval_baseline.py` | Frozen development retrieval runner |
 | `run_baseline_answers.py` | Saved baseline generation and pending review export |
 | `run_saved_reranking.py` | Separate development reranking experiment |
