@@ -1,0 +1,6 @@
+# Additive service dependencies; original requirements.txt remains unchanged.
+-r requirements.txt
+starlette>=0.47,<2
+uvicorn>=0.35,<1
+python-multipart>=0.0.20,<1
+httpx>=0.28,<1
