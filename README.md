@@ -4,7 +4,7 @@
 
 A multi-PDF question-answering project by **Getamesay Zegeye**, with a Streamlit interface, a local authenticated HTTP API, stable evidence identities and a reproducible development evaluation harness.
 
-The service returns answers alongside the retrieved filenames, PDF pages, text and chunk IDs. Retrieved evidence is available for inspection; model-generated citations are not automatically verified.
+The service returns answers alongside the retrieved filenames, PDF pages, text and chunk IDs. Retrieved evidence is available for inspection. Deterministic filename/page diagnostics flag reference problems; semantic claim support and citation coverage still require review.
 
 ## Features
 
@@ -13,6 +13,7 @@ The service returns answers alongside the retrieved filenames, PDF pages, text a
 - Gemini document/query embeddings using separate retrieval task types.
 - L2-normalized vectors and exact FAISS `IndexFlatIP` search over all PDFs in a collection.
 - Up to six retrieved passages per question.
+- Citation-reference diagnostics for missing filenames, unknown sources and PDF pages absent from retrieved context; no automatic claim-support judgment.
 - Bounded history and a standalone-question rewrite for follow-ups.
 - Streamlit upload, chat and evidence-inspection tabs using the same RAG core as the API.
 - Local API for collection creation, questions and deletion, protected by a service token.
@@ -117,7 +118,7 @@ Write-Output $result.answer
 $result.retrieved_passages | Select-Object source, page, chunk_id
 ```
 
-Responses include `answer`, `retrieval_question`, `retrieved_passages`, `collection_id`, `chat_model`, `embedding_model` and an evidence-use disclaimer. The passage objects retain text, provenance and index position. Only PDFs belonging to that collection are searched.
+Responses include `answer`, `retrieval_question`, `retrieved_passages`, `citation_check`, `collection_id`, `chat_model`, `embedding_model` and an evidence-use disclaimer. The passage objects retain text, provenance and index position. Only PDFs belonging to that collection are searched.
 
 ### Follow-ups
 
@@ -171,6 +172,12 @@ Successful deletion returns **204**. A valid question request for that deleted c
 
 For **413**, inspect actual file sizes; the total body limit still applies even when each file is below 6 MiB. For PowerShell JSON requests, prefer `ConvertTo-Json` and `Invoke-RestMethod`; inline JSON passed to `curl.exe` can be altered by native-command quoting. Invalid JSON can return 422 before collection lookup. For 401, load the token from the same `.env` used by the running server.
 
+## Citation-reference diagnostics
+
+The UI displays filename/PDF-page diagnostics before showing the original model answer. The API returns the same diagnostics in `citation_check`. Parsed filenames and pages are checked against the supplied retrieval headers; missing filenames, unknown sources/pages and unsupported citation formats are flagged for review. Answers are not rewritten, blocked or automatically re-scored.
+
+A `matched` result establishes reference matching only: semantic claim support and citation coverage are explicitly unverified. Responses without parseable citations are `not_checked`, since a brief missing-information response may legitimately need none. See [citation-reference checks and limitations](docs/CITATION_REFERENCE_CHECKS.md). The check makes no additional Google requests.
+
 ## Optional embedding cache
 
 Enable `RAG_EMBEDDING_CACHE_ENABLED=1` before starting the UI/API to reuse matching document vectors across processing runs. It is off by default. Records live under `private_data/embedding_cache_v1/` unless configured otherwise. Questions, rewrites and answers are not cached; document extraction and FAISS construction still run.
@@ -195,7 +202,7 @@ Upload several PDFs, click **Process PDFs**, then use **Chat** and **Retrieved c
 
 ## Validation and development evaluation
 
-**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed for the service milestone. The shared-core UI adds eight offline tests; the expanded **158-test suite passed during migration preparation**. The cache extension adds 18 offline tests; the expanded **176-test suite passed during cache preparation**. Windows PR checks run separately. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
+**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed for the service milestone. The shared-core UI adds eight offline tests; the expanded **158-test suite passed during migration preparation**. The cache extension adds 18 offline tests; the expanded **176-test suite passed during cache preparation**. The reference-diagnostics extension adds 25 tests; the expanded **201-test suite passed during preparation**. Windows PR checks run separately. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
 
 Live local smoke checks separately passed for health, unauthorized-request rejection, two-PDF upload, a direct FPS answer, a follow-up layer-count answer, missing-information handling and deletion (**204**, followed by **404**). These examples demonstrate functionality, not a new answer-quality benchmark or latency measurement.
 
@@ -246,6 +253,7 @@ No Google credentials are required. The workflow is [.github/workflows/rag-servi
 | `rag_provenance.py` | PDF extraction and stable evidence identity |
 | `rag_core.py` | UI-independent pipeline with original prompt/retrieval functions |
 | `rag_service.py` | Collection storage, isolation, query and deletion |
+| `citation_validation.py` | Filename/page diagnostics against supplied retrieval headers |
 | `service_api.py` | Authenticated HTTP boundary and resource limits |
 | `run_service.py` | Single-worker localhost server entry point |
 | `embedding_cache.py` | Opt-in bound document-vector cache with integrity validation |
