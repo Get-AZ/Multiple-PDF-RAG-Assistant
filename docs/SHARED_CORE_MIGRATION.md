@@ -70,3 +70,7 @@ After preparation, the user ran the shared-core UI locally and reported these ob
 | Changed upload selection | User confirmed chat became disabled after removing a PDF, without reprocessing. |
 
 The Transformer upload was displayed in generated answers as `Attention Is All You Need..pdf`. These manual checks were not a new hash-bound run of the frozen 15-case evaluation. They establish observed UI functionality and expose continuing citation limitations; they do not establish that all answers passed citation support or provide a new aggregate accuracy score. The PR's Windows offline check also passed. Historical saved reviews and scores remain unchanged.
+
+## Later reference diagnostics
+
+The UI and API attach [filename/page diagnostics](CITATION_REFERENCE_CHECKS.md) to answers without changing the original answer or the shared-core prompt. The UI displays warnings/information before the answer; matched references do not establish semantic support or complete citation coverage. Re-rendering an existing answer can run the pure reference check without a model request. Historical human-review decisions remain unchanged.
