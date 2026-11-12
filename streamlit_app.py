@@ -16,14 +16,14 @@ def upload_selection(files):
     return tuple((f.name, hashlib.sha256(f.getvalue()).hexdigest()) for f in files)
 
 
-def build_index(files):
+def build_index(files, stats=None):
     """Adapt the core's progress callback to Streamlit without duplicating RAG."""
     progress = st.progress(0, text="Creating document embeddings...")
     try:
         def update(completed, total):
             progress.progress(completed / total,
                               text=f"Embedded {completed} of {total} chunks")
-        return core.build_index(files, progress=update)
+        return core.build_index(files, progress=update, stats=stats)
     finally:
         progress.empty()
 
@@ -60,9 +60,10 @@ def main():
         if st.button("Process PDFs", disabled=not files or not has_key):
             try:
                 with st.spinner("Reading PDFs and creating a shared index..."):
-                    index, chunks = build_index(files)
+                    processing_stats = {}
+                    index, chunks = build_index(files, stats=processing_stats)
                 # Keep the existing index and chat intact until processing succeeds.
-                st.session_state.pdf_data = {"provenance_schema": 1, "pipeline_id": PIPELINE_ID, "selection": selection, "index": index,
+                st.session_state.pdf_data = {"provenance_schema": 1, "pipeline_id": PIPELINE_ID, "processing": processing_stats, "selection": selection, "index": index,
                                              "chunks": chunks}
                 st.session_state.messages = []
                 st.success(f"Ready: {len(chunks)} chunks indexed.")
@@ -74,7 +75,7 @@ def main():
                 st.error(f"Processing failed: {error}")
         if st.button("Clear chat"):
             st.session_state.messages = []
-        st.caption("Indexes and chat stay in this session only. This UI uses the shared core directly; the HTTP server is not required. Both embeddings and "
+        st.caption("Indexes and chat stay in this session only. Optional document embeddings can persist in a local cache when enabled. This UI uses the shared core directly; the HTTP server is not required. Both embeddings and "
                    "answers use Google APIs. Follow-ups use an additional rewrite request.")
 
     data = st.session_state.pdf_data
@@ -87,6 +88,11 @@ def main():
             st.subheader("Indexed documents")
             for name, count in counts.items():
                 st.write(f"{name}: {count} chunks")
+            processing = data.get("processing", {})
+            if processing:
+                st.caption(f"Reused document embeddings: {processing['reused_chunks']}; "
+                           f"document embedding requests: {processing['document_embedding_requests']}; "
+                           f"processing: {processing['processing_seconds']:.2f}s")
     else:
         st.info("Select your PDFs and click Process PDFs before asking questions.")
     chat_tab, evidence_tab = st.tabs(["2. Chat", "3. Retrieved context"])
