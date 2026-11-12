@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from secrets import token_urlsafe
 import threading
 import rag_core
+from citation_validation import check_citations
 
 
 class BusyError(Exception):
@@ -63,6 +64,7 @@ class RagService:
             index, chunks = self._collections[cid]
             answer, passages, rewritten = self.core.answer_question(question, index, chunks, messages, k=6)
             return {'collection_id': cid, 'answer': answer, 'retrieval_question': rewritten,
+                    'citation_check': check_citations(answer, passages),
                     'retrieved_passages': passages, 'chat_model': self.core.CHAT_MODEL,
                     'embedding_model': self.core.EMBEDDING_MODEL,
                     'evidence_note': 'Retrieved evidence is not proof that each passage was cited or used.'}
