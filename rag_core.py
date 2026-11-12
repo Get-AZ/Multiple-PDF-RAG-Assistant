@@ -3,6 +3,11 @@ Original answer/rewrite prompt and retrieval functions are preserved verbatim.
 Service default uses the model explicitly selected for the evaluated runs.
 """
 import os
+import hashlib
+from importlib.metadata import version
+from pathlib import Path
+from time import perf_counter
+from embedding_cache import collection_identity, configured_cache
 import faiss
 import numpy as np
 from google import genai
@@ -122,22 +127,49 @@ Original question:
     return response.text, passages, retrieval_question
 
 
-def build_index(files, progress=None, max_chunks=2000):
-    """Build once per collection; callback is optional and UI-independent."""
+def build_index(files, progress=None, max_chunks=2000, cache=None, stats=None):
+    """Build a fresh index; optional disk reuse applies only to document vectors.
+
+    cache=None follows opt-in environment config; cache=False forces uncached.
+    stats is populated only after success. No query or answer caching is added.
+    """
+    started = perf_counter()
     chunks = extract_chunks(files)
     if not chunks:
         raise ValueError("No readable text found. Scanned PDFs need OCR first.")
     if len(chunks) > max_chunks:
         raise ValueError("Collection exceeds the 2000-chunk service limit.")
-    batches = []
-    with make_client() as client:
-        for start in range(0, len(chunks), 20):
-            batch = chunks[start:start + 20]
-            batches.append(embed_texts(client, [c["text"] for c in batch],
-                                      "RETRIEVAL_DOCUMENT"))
-            if progress is not None:
-                progress(min(start + 20, len(chunks)), len(chunks))
-    vectors = np.vstack(batches)
+    selected_cache = configured_cache() if cache is None else (None if cache is False else cache)
+    counts = {"document_embedding_requests": 0, "embedded_chunks": 0}
+
+    def produce():
+        batches = []
+        with make_client() as client:
+            for start in range(0, len(chunks), 20):
+                batch = chunks[start:start + 20]
+                counts["document_embedding_requests"] += 1
+                vectors = embed_texts(client, [c["text"] for c in batch], "RETRIEVAL_DOCUMENT")
+                counts["embedded_chunks"] += len(batch)
+                batches.append(vectors)
+                if progress is not None:
+                    progress(min(start + 20, len(chunks)), len(chunks))
+        return np.vstack(batches)
+
+    cache_status = "disabled"
+    if selected_cache is None:
+        vectors = produce()
+    else:
+        implementation = hashlib.sha256(Path(__file__).read_text(encoding="utf-8-sig").encode()).hexdigest()
+        identity = collection_identity(chunks, EMBEDDING_MODEL, selected_cache.revision,
+                                       selected_cache.dimension, implementation, version("google-genai"))
+        cached = selected_cache.get_or_compute(identity, produce)
+        vectors, cache_status = cached.vectors, cached.status
+        if cache_status == "hit" and progress is not None:
+            progress(len(chunks), len(chunks))
     index = faiss.IndexFlatIP(vectors.shape[1])
     index.add(vectors)
+    if stats is not None:
+        stats.update({**counts, "cache_status": cache_status, "chunk_count": len(chunks),
+                      "reused_chunks": len(chunks) if cache_status == "hit" else 0,
+                      "processing_seconds": perf_counter() - started})
     return index, chunks
