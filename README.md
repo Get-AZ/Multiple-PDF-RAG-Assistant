@@ -267,7 +267,7 @@ No Google credentials are required. The workflow is [.github/workflows/rag-servi
 
 ## Release and career materials
 
-[Proposed v1.0.0 release notes and publish checklist](docs/RELEASE_NOTES_v1.0.0.md) describe the current scope. The CV, LinkedIn draft and portfolio case study below reflect the evaluated service. The technical report, architecture, setup, evaluation plan, task validation and interview materials remain historical and may describe the earlier Streamlit-only milestone; use this README for current setup and boundaries.
+[Proposed v1.0.0 release notes and publish checklist](docs/RELEASE_NOTES_v1.0.0.md) describe the current scope. The technical report, interview Q&As, CV entries, LinkedIn draft and portfolio case study below reflect the v1.0.0 service. The architecture, setup, evaluation plan and task validation documents remain historical and may describe the earlier Streamlit-only milestone; use this README for current setup and boundaries.
 
 - [Technical report](docs/TECHNICAL_REPORT.md)
 - [Architecture](docs/ARCHITECTURE.md)
