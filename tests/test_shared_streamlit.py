@@ -102,5 +102,47 @@ class SharedStreamlitTests(unittest.TestCase):
             self.assertTrue(at.chat_input[0].disabled)
             self.assertEqual(len(at.exception),0)
 
+    def test_missing_filename_warning_with_unchanged_answer(self):
+        from types import SimpleNamespace
+        client=Client();answer='Wait 30 seconds (Passage 1, p. 1).'
+        client.models.generate_content=lambda **kwargs:SimpleNamespace(text=answer)
+        with patch.dict(os.environ,{'GOOGLE_API_KEY':'offline-test-key'}),patch('streamlit.file_uploader',return_value=documents()),patch.object(core,'make_client',return_value=client):
+            at=AppTest.from_file(str(ENTRY)).run();at.button[0].click().run()
+            at.chat_input[0].set_value('router?').run()
+            self.assertEqual(len(at.exception),0)
+            message=at.session_state['messages'][-1]
+            self.assertEqual(message['content'],answer)
+            self.assertEqual(message['citation_check']['status'],'needs_review')
+            self.assertTrue(any('Citation references need review' in warning.value for warning in at.warning))
+
+    def test_supported_reference_shows_scope_disclaimer(self):
+        with patch.dict(os.environ,{'GOOGLE_API_KEY':'offline-test-key'}),patch('streamlit.file_uploader',return_value=documents()),patch.object(core,'make_client',return_value=Client()):
+            at=AppTest.from_file(str(ENTRY)).run();at.button[0].click().run()
+            at.chat_input[0].set_value('router?').run()
+            self.assertEqual(at.session_state['messages'][-1]['citation_check']['status'],'matched')
+            self.assertTrue(any('Claim support and citation coverage still need review' in caption.value for caption in at.caption))
+
+    def test_uncited_absence_response_is_not_automatic_failure(self):
+        from types import SimpleNamespace
+        client=Client();answer='The supplied passages do not report this detail.'
+        client.models.generate_content=lambda **kwargs:SimpleNamespace(text=answer)
+        with patch.dict(os.environ,{'GOOGLE_API_KEY':'offline-test-key'}),patch('streamlit.file_uploader',return_value=documents()),patch.object(core,'make_client',return_value=client):
+            at=AppTest.from_file(str(ENTRY)).run();at.button[0].click().run()
+            at.chat_input[0].set_value('unknown result?').run()
+            self.assertEqual(at.session_state['messages'][-1]['content'],answer)
+            self.assertEqual(at.session_state['messages'][-1]['citation_check']['status'],'not_checked')
+            self.assertTrue(any('brief missing-information response' in item.value for item in at.info))
+
+    def test_previous_messages_are_checked_on_rerender_without_new_provider_calls(self):
+        client=Client()
+        with patch.dict(os.environ,{'GOOGLE_API_KEY':'offline-test-key'}),patch('streamlit.file_uploader',return_value=documents()),patch.object(core,'make_client',return_value=client):
+            at=AppTest.from_file(str(ENTRY)).run();at.button[0].click().run()
+            at.chat_input[0].set_value('router?').run()
+            messages=list(at.session_state['messages']);messages[-1]=dict(messages[-1]);messages[-1].pop('citation_check')
+            at.session_state['messages']=messages;before=len(client.models.calls)
+            at.run()
+            self.assertEqual(len(at.exception),0);self.assertEqual(len(client.models.calls),before)
+            self.assertTrue(any('Filename/page references match retrieved headers' in caption.value for caption in at.caption))
+
 
 if __name__ == '__main__': unittest.main()
