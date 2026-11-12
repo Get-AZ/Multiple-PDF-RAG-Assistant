@@ -1,6 +1,5 @@
 """Multi-document RAG with session chat and inspectable retrieval evidence."""
 import hashlib
-import io
 import os
 from collections import Counter
 from pathlib import Path
@@ -11,7 +10,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from pypdf import PdfReader
+from rag_provenance import extract_pdf_chunks
 
 CHAT_MODEL = "gemini-flash-lite-latest"
 EMBEDDING_MODEL = "gemini-embedding-001"
@@ -35,29 +34,8 @@ def upload_selection(files):
 
 
 def extract_chunks(files):
-    """Keep chunks page-local and distinguish duplicate upload filenames."""
-    files = list(files)
-    names = Counter(f.name for f in files)
-    chunks = []
-    for number, uploaded_file in enumerate(files, start=1):
-        source = uploaded_file.name
-        if names[source] > 1:
-            source = f"{source} (document {number})"
-        reader = PdfReader(io.BytesIO(uploaded_file.getvalue()))
-        for page_number, page in enumerate(reader.pages, start=1):
-            text = (page.extract_text() or "").strip()
-            if not text:
-                continue
-            for start in range(0, len(text), 1300):
-                chunks.append({
-                    "text": text[start:start + 1500],
-                    "source": source,
-                    "page": page_number,
-                    "document_id": number,
-                })
-                if start + 1500 >= len(text):
-                    break
-    return chunks
+    """Page-local extraction with stable content IDs and display labels."""
+    return extract_pdf_chunks(files)
 
 
 def embed_texts(client, texts, task_type):
@@ -120,7 +98,7 @@ def search_passages(client, question, index, chunks, k=6):
         raise ValueError("The document index is empty. Process PDFs again.")
     vector = embed_texts(client, [question], "RETRIEVAL_QUERY")
     _, positions = index.search(vector, min(k, index.ntotal))
-    return [dict(chunks[int(i)], chunk_id=int(i)) for i in positions[0] if i >= 0]
+    return [dict(chunks[int(i)], index_position=int(i)) for i in positions[0] if i >= 0]
 
 
 def answer_question(question, index, chunks, messages=None, k=6):
@@ -208,11 +186,11 @@ def main():
                 with st.spinner("Reading PDFs and creating a shared index..."):
                     index, chunks = build_index(files)
                 # Keep the existing index and chat intact until processing succeeds.
-                st.session_state.pdf_data = {"selection": selection, "index": index,
+                st.session_state.pdf_data = {"provenance_schema": 1, "selection": selection, "index": index,
                                              "chunks": chunks}
                 st.session_state.messages = []
                 st.success(f"Ready: {len(chunks)} chunks indexed.")
-                represented = {c["document_id"] for c in chunks}
+                represented = {c["upload_position"] for c in chunks}
                 for n, f in enumerate(files, 1):
                     if n not in represented:
                         st.warning(f"No readable text in {f.name}; it was not indexed.")
@@ -224,7 +202,8 @@ def main():
                    "answers use Google APIs. Follow-ups use an additional rewrite request.")
 
     data = st.session_state.pdf_data
-    ready = data is not None and data["selection"] == selection and has_key
+    ready = (data is not None and data.get("provenance_schema") == 1
+             and data["selection"] == selection and has_key)
     if ready:
         counts = Counter(c["source"] for c in data["chunks"])
         with st.sidebar:
@@ -274,3 +253,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
