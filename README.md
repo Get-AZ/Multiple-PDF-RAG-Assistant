@@ -2,78 +2,260 @@
 
 ![Multiple PDF RAG Assistant](./Multiple-PDF-RAG-Assistant.png)
 
-A Streamlit application by **Getamesay Zegeye** for asking questions across uploaded PDFs and inspecting the retrieved evidence.
+A multi-PDF question-answering project by **Getamesay Zegeye**, with a Streamlit interface, a local authenticated HTTP API, stable evidence identities and a reproducible development evaluation harness.
+
+The service returns answers alongside the retrieved filenames, PDF pages, text and chunk IDs. Retrieved evidence is available for inspection; model-generated citations are not automatically verified.
 
 ## Features
 
-- Multiple PDF uploads, extracted page by page with pypdf.
-- 1,500-character chunks, 200-character overlap; chunks stay within a page.
-- Gemini document/query embeddings with distinct retrieval task types.
-- L2-normalized vectors and exact FAISS IndexFlatIP search over a shared document collection.
-- Up to six retrieved chunks per question, with file names and page numbers.
-- Gemini Flash-Lite answers with recent conversation history and follow-up question rewriting.
-- Upload sidebar, chat tab and separate retrieved-context tab.
-- Answer-specific evidence retained across reruns, with a selector for previous answers.
-- Indexed-document inventory, duplicate-filename labels and clear-chat control.
-- SHA-256 file-selection checks prevent questions using an index for a changed selection.
-- The prior index is replaced only after successful processing.
+- Page-local extraction using pypdf: 1,500-character chunks with 200-character overlap.
+- Stable SHA-256 document/chunk identities, text hashes and character offsets.
+- Gemini document/query embeddings using separate retrieval task types.
+- L2-normalized vectors and exact FAISS `IndexFlatIP` search over all PDFs in a collection.
+- Up to six retrieved passages per question.
+- Bounded history and a standalone-question rewrite for follow-ups.
+- Streamlit upload, chat and evidence-inspection tabs.
+- Local API for collection creation, questions and deletion, protected by a service token.
+- Frozen development data, saved-response bindings and human-reviewed answer comparisons.
+- GitHub Actions runs the offline test suite on pull requests to `main`.
 
-## Run locally
+## Install
 
-Use Python 3.12 as a starting environment; dependencies are unpinned.
+The local Windows validation and CI use **Python 3.14**. Dependency ranges are not a fully locked environment.
 
-```bash
-python -m venv .venv
+From the repository root in Windows PowerShell:
+
+```powershell
+py -3.14 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-service.txt reportlab
 ```
 
-Activate with `source .venv/bin/activate` on macOS/Linux or `.venv\Scripts\Activate.ps1` in Windows PowerShell.
+For an existing environment, skip virtual-environment creation. On macOS/Linux, use `python3 -m venv .venv` and `.venv/bin/python` in place of the Windows interpreter path; those platforms were not included in the reported Windows CI validation.
 
-```bash
-python -m pip install -r requirements.txt
+If `.env` does not already exist, copy `.env.example` to `.env`. Set your own `GOOGLE_API_KEY`. Do not commit or share `.env`.
+
+Both embeddings and answer generation use Google's API and require available quota. Follow-ups add a rewrite request. Installation may download Python packages; the offline tests do not need a Google key, private research PDFs or model downloads.
+
+## Local API setup
+
+Configure an additional random service-access token. This command appends it to the local `.env` only if absent and does not print its value:
+
+```powershell
+@'
+from pathlib import Path
+import secrets
+from dotenv import dotenv_values
+
+path = Path('.env')
+if not dotenv_values(path, encoding='utf-8-sig').get('RAG_SERVICE_TOKEN'):
+    with path.open('a', encoding='utf-8') as stream:
+        stream.write('\nRAG_SERVICE_TOKEN=' + secrets.token_urlsafe(32) + '\n')
+print('Local service token configured; value not displayed.')
+'@ | .\.venv\Scripts\python.exe -
+
+.\.venv\Scripts\python.exe .\run_service.py
 ```
 
-Copy `.env.example` to `.env`, set GOOGLE_API_KEY, then run:
+Leave this terminal running. The server binds to **http://127.0.0.1:8000** with one worker. Starting it makes no Google API requests. Stop it with **Ctrl+C**.
 
-```bash
-python -m streamlit run app.py
+In a second PowerShell terminal, from the repository root:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
 ```
 
-Upload text-based PDFs, click **Process PDFs**, then ask a question. Both embeddings and generation use Google's API and need available quota. No API key or research PDF is included.
+Health is unauthenticated and reports process status and whether a Google key is configured. It does not call Google or verify that the key has usable quota.
 
-## Implementation boundaries
+The API uses `gemini-3.5-flash-lite` for generation and `gemini-embedding-001` for embeddings. These are the model IDs selected for the development evaluation; provider weights are not independently pinned.
 
-The FAISS index is in session memory; it is not saved to disk. Restarting the session requires processing again. The last three completed conversation turns are used to resolve follow-ups. A separate model request rewrites follow-ups for retrieval; both the current question and bounded history accompany answer generation. History is not treated as factual evidence. Retrieval is semantic top-6 across all PDFs; there is no hybrid retrieval, reranking, per-document coverage guarantee or relevance threshold. Scanned PDFs require OCR outside this app.
+### Endpoints
 
-This Task 2 update extends the attached original source. Thirteen offline tests pass, including Streamlit AppTest flows, real pypdf extraction and real FAISS indexing/search with simulated Google responses. Extraction also succeeded on the supplied YOLO and Transformer research PDFs (74 chunks across 25 nonempty pages). Sample research/manual/report PDFs are generated in memory by the tests. These checks establish application behavior, not live Gemini answer quality. No live API accuracy or latency result is claimed.
+| Method | Path | Purpose | Google requests |
+|---|---|---|---|
+| GET | `/health` | Local process/configuration status | None |
+| POST | `/collections` | Upload PDFs as multipart fields named `files`; build a shared index | Document embeddings |
+| POST | `/collections/{id}/query` | Answer a question using that collection | Query embedding and generation; rewrite for follow-ups |
+| DELETE | `/collections/{id}` | Delete the collection from memory | None |
 
-## Task 2: multi-document chat
+Every non-health endpoint requires `Authorization: Bearer <RAG_SERVICE_TOKEN>`. This token is distinct from the Google API key. Every token holder can access every collection: this is a local single-user service, not multi-user authorization.
 
-1. Upload several text-based PDFs in the sidebar and click **Process PDFs**.
-2. Use **Chat** to ask a question or follow-up. Earlier chat is kept in session state.
-3. Open **Retrieved context** to inspect an answer's file names, pages, passages and rewritten search question.
-4. Use **Choose an answer to inspect** to revisit evidence from an earlier turn.
-5. **Clear chat** removes chat and evidence while retaining the processed index.
-6. A changed upload selection disables questions and hides the old chat until that selection is restored or successfully processed.
+### Upload and ask a question
 
-Retrieved file labels identify candidate evidence, not a guarantee that every passage contributed to the answer. Citations remain model-generated and need review. Follow-ups add a model call and can fail or resolve references incorrectly.
+The following commands make Google API requests. Run them intentionally with public or otherwise authorized PDFs.
 
-## Documentation
+In the second terminal, load the service token without displaying it, then replace the two PDF paths:
+
+```powershell
+$env:RAG_SERVICE_TOKEN = .\.venv\Scripts\python.exe -c "from dotenv import dotenv_values; print(dotenv_values('.env', encoding='utf-8-sig')['RAG_SERVICE_TOKEN'])"
+$headers = @{ Authorization = "Bearer $env:RAG_SERVICE_TOKEN" }
+
+$yolo = 'C:\path\YOLO.pdf'
+$transformer = 'C:\path\transformer.pdf'
+
+$uploadResult = curl.exe -sS --fail-with-body `
+  -H "Authorization: Bearer $env:RAG_SERVICE_TOKEN" `
+  -F "files=@$yolo;type=application/pdf" `
+  -F "files=@$transformer;type=application/pdf" `
+  http://127.0.0.1:8000/collections
+
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: $uploadResult" }
+$created = $uploadResult | ConvertFrom-Json
+$collectionId = $created.collection_id
+$created | ConvertTo-Json -Depth 5
+
+$body = @{
+    question = 'What FPS are reported for YOLO and Fast YOLO?'
+    messages = @()
+} | ConvertTo-Json -Depth 6
+
+$result = Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/collections/$collectionId/query" `
+  -Headers $headers -ContentType 'application/json' -Body $body
+
+Write-Output $result.answer
+$result.retrieved_passages | Select-Object source, page, chunk_id
+```
+
+Responses include `answer`, `retrieval_question`, `retrieved_passages`, `collection_id`, `chat_model`, `embedding_model` and an evidence-use disclaimer. The passage objects retain text, provenance and index position. Only PDFs belonging to that collection are searched.
+
+### Follow-ups
+
+The service does not store chat history. Send at most three completed user/assistant pairs in `messages`, in alternating order. History resolves references; it is not factual evidence.
+
+```powershell
+$body = @{
+    question = 'How many convolutional layers does each use?'
+    messages = @(
+        @{ role = 'user'; content = 'What FPS are reported for YOLO and Fast YOLO?' },
+        @{ role = 'assistant'; content = $result.answer }
+    )
+} | ConvertTo-Json -Depth 6
+
+$followup = Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/collections/$collectionId/query" `
+  -Headers $headers -ContentType 'application/json' -Body $body
+
+Write-Output $followup.retrieval_question
+Write-Output $followup.answer
+```
+
+To delete the collection:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing -Method Delete `
+  -Uri "http://127.0.0.1:8000/collections/$collectionId" -Headers $headers |
+  Select-Object StatusCode
+```
+
+Successful deletion returns **204**. A valid question request for that deleted collection returns **404** without calling Google. Restarting the server also removes every collection.
+
+### Limits and errors
+
+- **1–4 PDFs** per upload; **6 MiB per PDF**; **12 MiB total HTTP body**, including multipart overhead.
+- Up to **2,000 chunks per collection** and **4 resident collections**. Delete old collections explicitly.
+- One collection operation at a time; overlapping operations return **409**.
+- Questions contain 1–4,000 characters. History accepts up to three completed pairs, with at most 6,000 characters per message before the core's additional text caps.
+- Text-based PDFs only; OCR is not included. Unreadable files are reported as not indexed, and an entirely textless collection is rejected.
+- State is in process memory. There is no persistence, cross-worker coordination, embedding disk cache, TTL, task queue or user-account system.
+
+| Status | Meaning |
+|---|---|
+| 401 | Missing or incorrect service token |
+| 404 | Unknown/deleted collection, including after restart |
+| 409 | Busy service or collection capacity reached |
+| 413 | File or total request exceeds the size limit |
+| 415 | Unsupported content type |
+| 422 | Invalid question/history, input or provider result |
+| 502 | Other processing/provider failure; exception details are withheld |
+
+For **413**, inspect actual file sizes; the total body limit still applies even when each file is below 6 MiB. For PowerShell JSON requests, prefer `ConvertTo-Json` and `Invoke-RestMethod`; inline JSON passed to `curl.exe` can be altered by native-command quoting. Invalid JSON can return 422 before collection lookup. For 401, load the token from the same `.env` used by the running server.
+
+## Streamlit interface
+
+The existing interface remains available separately:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+Upload several PDFs, click **Process PDFs**, then use **Chat** and **Retrieved context**. Previous answer evidence can be revisited; **Clear chat** retains the processed index. A changed upload selection disables questions until restored or successfully reprocessed.
+
+`app.py` remains the inspected evaluation baseline and retains the older `gemini-flash-lite-latest` alias. Availability of that alias was not established by the API smoke checks. The new service uses `rag_core.py` with the explicit model above; Streamlit has not yet been rewired to that core. Changing bound source files requires a new evaluation baseline rather than editing saved hashes.
+
+## Validation and development evaluation
+
+**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
+
+Live local smoke checks separately passed for health, unauthorized-request rejection, two-PDF upload, a direct FPS answer, a follow-up layer-count answer, missing-information handling and deletion (**204**, followed by **404**). These examples demonstrate functionality, not a new answer-quality benchmark or latency measurement.
+
+The development evaluation uses **15 human-reviewed cases** on the familiar YOLO and Transformer papers: **12 answerable**, **3 missing-information**, including **2 completed follow-up histories**. The corpus contains 74 page-local chunks. The same two PDFs are searched together; reference answers and evidence labels are excluded from model inputs.
+
+Original FAISS retrieval at **k=6**, scored on the 12 answerable cases:
+
+| Metric | Result |
+|---|---:|
+| Recall@6 | 0.8125 |
+| MRR@6 | 0.6972 |
+| nDCG@6 | 0.6836 |
+
+Retrieval scores use frozen evidence IDs. In one case, equivalent answering evidence was retrieved outside the labeled chunk; the frozen labels and retrieval score were preserved.
+
+The citation-instruction experiment retained the saved six passages/order and generation settings, adding only a citation instruction prefix. Fresh human review produced:
+
+| Answer criterion | Original baseline | Citation candidate |
+|---|---:|---:|
+| Correctness | 15/15 | 15/15 |
+| Completeness | 13/15 | 12/15 |
+| Groundedness | 15/15 | 15/15 |
+| Citation support | 11/15 | 12/15 |
+| Appropriate abstention | 15/15 | 15/15 |
+| All five criteria | 9/15 | 10/15 |
+
+**The citation candidate was not promoted because completeness regressed.** A separate cross-encoder reranking experiment also regressed retrieval metrics and was not promoted. The service retains the original prompt and FAISS retrieval behavior, with explicit service limits and the evaluated generation model ID.
+
+These are single-reviewer results on familiar development cases. They are not held-out generalization results, independent inter-rater agreement, statistical significance or proof of production reliability. Correctness concerns stated facts; completeness and citation support are assessed separately. Retrieval does not guarantee complete or accurately cited answers.
+
+Private PDFs, frozen data, saved responses and review reports remain local and are not distributed here. Offline tests generate synthetic PDF fixtures in memory.
+
+## Run offline tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-service.txt reportlab
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+No Google credentials are required. The workflow is [.github/workflows/rag-service-tests.yml](.github/workflows/rag-service-tests.yml). Offline tests validate behavior and consistency; live model requests are not part of CI.
+
+## Code map
+
+| File | Role |
+|---|---|
+| `app.py` | Existing Streamlit application/evaluation baseline |
+| `rag_provenance.py` | PDF extraction and stable evidence identity |
+| `rag_core.py` | UI-independent pipeline with original prompt/retrieval functions |
+| `rag_service.py` | Collection storage, isolation, query and deletion |
+| `service_api.py` | Authenticated HTTP boundary and resource limits |
+| `run_service.py` | Single-worker localhost server entry point |
+| `run_app_retrieval_baseline.py` | Frozen development retrieval runner |
+| `run_baseline_answers.py` | Saved baseline generation and pending review export |
+| `run_saved_reranking.py` | Separate development reranking experiment |
+| `run_citation_experiment.py` | Citation-instruction candidate generation |
+| `score_baseline_reviews.py` | Validated baseline human-review scoring |
+| `score_citation_reviews.py` | Bound candidate scoring and paired comparison |
+
+## Earlier documentation and career materials
+
+The linked documents below predate the API/evaluation upgrade and may describe the earlier Streamlit-only milestone. This README records the current service boundaries and results.
 
 - [Technical report](docs/TECHNICAL_REPORT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Setup and troubleshooting](docs/SETUP_AND_TROUBLESHOOTING.md)
 - [Evaluation plan](evaluation/EVALUATION.md)
+- [Task 2 validation and manual test matrix](docs/TASK2_VALIDATION.md)
 - [Short CV entry](career/CV_Short.md)
 - [Detailed CV entry](career/CV_Detailed.md)
 - [LinkedIn text](career/LINKEDIN.md)
 - [Portfolio case study](career/PORTFOLIO_CASE_STUDY.md)
 - [30 interview questions and answers](interview/30_Interview_Questions_and_Answers.md)
 
-Install test dependencies: `python -m pip install -r requirements-dev.txt`.
-
-Run offline checks: `python -m unittest discover -s tests -v`.
-
-See [Task 2 validation and manual test matrix](docs/TASK2_VALIDATION.md).
-
 Project: https://github.com/Get-AZ/Multiple-PDF-RAG-Assistant
-
