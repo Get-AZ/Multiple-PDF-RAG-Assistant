@@ -5,3 +5,6 @@
 __pycache__/
 *.pyc
 *.pdf
+
+# Local evaluation artifacts and opt-in embedding cache
+/private_data/
