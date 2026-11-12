@@ -177,7 +177,7 @@ Enable `RAG_EMBEDDING_CACHE_ENABLED=1` before starting the UI/API to reuse match
 
 The UI displays processing observations; API collection creation includes a `processing` object with document-embedding requests, reused chunks and elapsed seconds. Deleting a collection or clearing chat does not delete persisted cache records. Treat vectors as private derived document data, and change the cache revision when the provider embedding version changes.
 
-[Cache setup, invalidation, limits and cold/warm measurement](docs/EMBEDDING_CACHE.md) explain the opt-in settings and `benchmark_embedding_cache.py`. The benchmark defaults to a no-API dry run; `--execute` makes cold document-embedding requests and verifies zero requests on warm repeats. No real timing/savings claim is assigned before measurement.
+[Cache setup, invalidation, limits and cold/warm measurement](docs/EMBEDDING_CACHE.md) explain the opt-in settings and `benchmark_embedding_cache.py`. The benchmark defaults to a no-API dry run; `--execute` makes cold document-embedding requests and verifies zero requests on warm repeats. In the reported two-PDF local benchmark, cold processing used four document-embedding requests and took 4.2626 s; three warm runs used zero such requests, with a median of 0.8397 s (about 5.08x cold/warm-median ratio). This is a single local observation, not a general speedup or answer-quality claim; see the cache notes for limitations.
 
 ## Streamlit interface
 
