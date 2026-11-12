@@ -14,7 +14,7 @@ The service returns answers alongside the retrieved filenames, PDF pages, text a
 - L2-normalized vectors and exact FAISS `IndexFlatIP` search over all PDFs in a collection.
 - Up to six retrieved passages per question.
 - Bounded history and a standalone-question rewrite for follow-ups.
-- Streamlit upload, chat and evidence-inspection tabs.
+- Streamlit upload, chat and evidence-inspection tabs using the same RAG core as the API.
 - Local API for collection creation, questions and deletion, protected by a service token.
 - Frozen development data, saved-response bindings and human-reviewed answer comparisons.
 - GitHub Actions runs the offline test suite on pull requests to `main`.
@@ -172,19 +172,21 @@ For **413**, inspect actual file sizes; the total body limit still applies even 
 
 ## Streamlit interface
 
-The existing interface remains available separately:
+Run the shared-core UI in a separate terminal:
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
+.\.venv\Scripts\python.exe -m streamlit run streamlit_app.py
 ```
 
 Upload several PDFs, click **Process PDFs**, then use **Chat** and **Retrieved context**. Previous answer evidence can be revisited; **Clear chat** retains the processed index. A changed upload selection disables questions until restored or successfully reprocessed.
 
-`app.py` remains the inspected evaluation baseline and retains the older `gemini-flash-lite-latest` alias. Availability of that alias was not established by the API smoke checks. The new service uses `rag_core.py` with the explicit model above; Streamlit has not yet been rewired to that core. Changing bound source files requires a new evaluation baseline rather than editing saved hashes.
+`streamlit_app.py` calls `rag_core.py` directly, sharing its generation model, original answer/rewrite prompts, embedding validation and FAISS retrieval with the API. The HTTP server and service token are not required for this UI. UI sessions and API collections have separate in-memory indexes and chat lifecycles; they do not share uploaded collections. The core enforces a 2,000-chunk limit; the HTTP-specific file/body limits apply to the API boundary.
+
+`app.py` remains unchanged as the inspected historical evaluation baseline, including its older `gemini-flash-lite-latest` alias. Use `streamlit_app.py` for the shared-core UI. Historical evaluation runners still bind to `app.py`; do not edit saved hashes to bypass a source mismatch. See [shared-core migration notes](docs/SHARED_CORE_MIGRATION.md).
 
 ## Validation and development evaluation
 
-**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
+**150 offline tests passed locally**, and the Windows/Python 3.14 GitHub Actions pull-request check passed for the service milestone. The shared-core UI adds eight offline tests; the expanded **158-test suite passed during migration preparation**. Its Windows PR check runs separately. Tests cover real PDF extraction and FAISS search with simulated Google responses, provenance, review validation, saved-response bindings, prompt parity, API validation, collection isolation and lifecycle behavior.
 
 Live local smoke checks separately passed for health, unauthorized-request rejection, two-PDF upload, a direct FPS answer, a follow-up layer-count answer, missing-information handling and deletion (**204**, followed by **404**). These examples demonstrate functionality, not a new answer-quality benchmark or latency measurement.
 
@@ -230,7 +232,8 @@ No Google credentials are required. The workflow is [.github/workflows/rag-servi
 
 | File | Role |
 |---|---|
-| `app.py` | Existing Streamlit application/evaluation baseline |
+| `streamlit_app.py` | Current Streamlit UI calling the shared core |
+| `app.py` | Preserved historical Streamlit application/evaluation baseline |
 | `rag_provenance.py` | PDF extraction and stable evidence identity |
 | `rag_core.py` | UI-independent pipeline with original prompt/retrieval functions |
 | `rag_service.py` | Collection storage, isolation, query and deletion |
