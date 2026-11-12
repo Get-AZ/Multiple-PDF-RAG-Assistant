@@ -1,0 +1,4 @@
+numpy
+faiss-cpu
+sentence-transformers>=5.4,<7
+huggingface-hub
