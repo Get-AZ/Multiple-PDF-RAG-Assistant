@@ -63,7 +63,7 @@ class CitationExperimentTests(unittest.TestCase):
             protected=Path(tmp)/'baseline'
             for candidate in [protected,protected/'child',Path(tmp)]:
                 with self.assertRaises(ValueError):c.safe_output(candidate,[protected])
-            self.assertEqual(c.safe_output(Path(tmp)/'candidate',[protected]),Path(tmp)/'candidate')
+            self.assertEqual(c.safe_output(Path(tmp)/'candidate',[protected]),(Path(tmp)/'candidate').resolve())
 
     def test_version_audit_detects_changed_and_unknown(self):
         old={'cases':[{'id':'a','model_version':'v1'},{'id':'b','model_version':None}]}
