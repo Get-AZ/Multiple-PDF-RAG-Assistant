@@ -43,12 +43,13 @@ class RagService:
         try:
             if len(self._collections) >= self.max_collections:
                 raise CapacityError('Delete a collection before creating another.')
-            index, chunks = self.core.build_index(uploads)
+            processing = {}
+            index, chunks = self.core.build_index(uploads, stats=processing)
             cid = token_urlsafe(24)
             # Publish only after all extraction, embeddings and indexing succeed.
             self._collections[cid] = (index, chunks)
             represented = {c['upload_position'] for c in chunks}
-            return {'collection_id': cid, 'chunk_count': len(chunks),
+            return {'collection_id': cid, 'chunk_count': len(chunks), 'processing': processing,
                     'documents': [{'filename': f.name, 'upload_position': n,
                                    'indexed': n in represented} for n, f in enumerate(uploads, 1)]}
         finally:

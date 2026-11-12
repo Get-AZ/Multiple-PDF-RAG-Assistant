@@ -30,7 +30,7 @@ app.py is unchanged. Its normalized UTF-8 SHA256 is:
 613eec2f024d32c27432fa3e610d450af2c329e53bd84acfc7530281eaf29da8
 ```
 
-The existing evaluation scripts, rag_core.py, rag_provenance.py, datasets, prompts, answers, approved reviews and score bindings are unchanged. Historical runners continue validating against app.py. Do not change frozen manifests or hashes to make new source pass an older baseline check.
+The existing evaluation scripts, rag_provenance.py, datasets, prompts, answers, approved reviews and score bindings are unchanged. The original core prompt/retrieval functions are preserved; a later [opt-in embedding cache](EMBEDDING_CACHE.md) extends build_index without changing those functions. Historical runners continue validating against app.py. Do not change frozen manifests or hashes to make new source pass an older baseline check.
 
 The prior 15-case development scores describe the saved evaluated runs. Sharing their original functions and model ID does not constitute a new live-model answer-quality evaluation of this UI. Provider responses may vary.
 
