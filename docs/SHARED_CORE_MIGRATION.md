@@ -53,3 +53,20 @@ After the offline suite and PR check pass, launch streamlit_app.py and open the 
 Ask the FPS question, follow up about convolutional depth, then ask for the missing English-to-Amharic BLEU score. Inspect the rewritten question, filenames, PDF pages and evidence. A direct question makes query-embedding and generation requests; a follow-up adds a rewrite request.
 
 Check evidence after a rerun and clear chat. Confirm that changing the upload selection disables chat until processing succeeds. No such live UI run was made during package preparation, and the earlier API smoke checks are recorded separately.
+
+## Reported live UI checks — 2026-11-12
+
+After preparation, the user ran the shared-core UI locally and reported these observations:
+
+| Check | Observation |
+|---|---|
+| YOLO processing | 36 chunks indexed. |
+| Direct FPS question | Correct: YOLO 45 FPS; Fast YOLO 155 FPS. Citations used passage numbers and omitted the source filename, failing the strict filename/page criterion. |
+| Follow-up layer count | Correct: 24 versus 9 convolutional layers. The displayed standalone question explicitly named both models, and the supporting page-2 passage ranked first. Filename citations were again omitted. |
+| Missing RTX 4090 performance | Correctly abstained and identified Titan X as the reported hardware; supporting explanation omitted filename citations. |
+| Clear chat | User confirmed chat/evidence cleared while the YOLO index remained usable. |
+| Transformer encoder question | Correct: six identical encoder layers. The pasted encoder text supports the fact; the exact retrieved filename/page header was not supplied for full citation verification. |
+| Cross-document comparison | Correct high-level CNN versus self-attention comparison, with both filenames in the answer. Transformer page citations were not fully verified against retrieved headers. |
+| Changed upload selection | User confirmed chat became disabled after removing a PDF, without reprocessing. |
+
+The Transformer upload was displayed in generated answers as `Attention Is All You Need..pdf`. These manual checks were not a new hash-bound run of the frozen 15-case evaluation. They establish observed UI functionality and expose continuing citation limitations; they do not establish that all answers passed citation support or provide a new aggregate accuracy score. The PR's Windows offline check also passed. Historical saved reviews and scores remain unchanged.
